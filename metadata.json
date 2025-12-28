@@ -1,0 +1,8 @@
+{
+  "name": "My Reading Journey",
+  "description": "A beautiful digital library tracking books read from Bucharest and Slobozia, powered by Gemini AI for insights, media generation, and analysis.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
