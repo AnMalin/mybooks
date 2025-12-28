@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Book, AspectRatio } from '../types';
 import * as GeminiService from '../services/geminiService';
-import { X, Send, Sparkles, Image as ImageIcon, Video, Search, BrainCircuit, Loader2, Info, Link as LinkIcon } from 'lucide-react';
+import { X, Send, Sparkles, Image as ImageIcon, Video, Search, BrainCircuit, Loader2, Info, Link as LinkIcon, AlertCircle } from 'lucide-react';
 
 interface AiSidebarProps {
   book: Book | null;
@@ -45,7 +45,13 @@ const AiSidebar: React.FC<AiSidebarProps> = ({ book, initialMode, onClose }) => 
              const analysis = await GeminiService.generateResponse(`Deep analytical critique of the narrative and visual themes for: ${book?.title}. ${currentPrompt}`, true, false);
              setResult(analysis.text || "");
         } else if (currentMode === 'findCover') {
-             const res = await GeminiService.generateResponse(`I am looking for the OFFICIAL book cover image URL for "${book?.title}" by ${book?.author}. Use Google Search to find high quality image links from sites like Amazon, Goodreads, or OpenLibrary. List at least 3 direct links to images.`, false, true);
+             const target = book ? `"${book.title}" by ${book.author}` : "all missing book covers from a library";
+             const res = await GeminiService.generateResponse(`
+                Găsește cele mai bune URL-uri directe către coperta cărții: ${target}.
+                CAUTĂ PE: Google Images, Amazon, Goodreads, OpenLibrary.
+                REGULĂ: Returnează o listă de URL-uri care se termină în .jpg sau .png dacă este posibil.
+                EXPLICAȚIE: Utilizatorul vrea să înlocuiască placeholder-ele cu imagini reale.
+             `, false, true);
              setResult(res.text || "");
              setGroundingUrls(res.groundingUrls || []);
         }
@@ -64,7 +70,7 @@ const AiSidebar: React.FC<AiSidebarProps> = ({ book, initialMode, onClose }) => 
         if (book) executeGeneration(p, 'chat');
     } else if (initialMode === 'findCover') {
         setMode('findCover');
-        if (book) executeGeneration("", 'findCover');
+        executeGeneration("", 'findCover');
     } else {
         setMode(initialMode as any);
         setPrompt('');
@@ -80,7 +86,7 @@ const AiSidebar: React.FC<AiSidebarProps> = ({ book, initialMode, onClose }) => 
 
   return (
     <div className="fixed inset-y-0 right-0 w-full sm:w-[500px] bg-white shadow-[-20px_0_60px_rgba(0,0,0,0.1)] z-50 flex flex-col transform transition-all duration-500 ease-out border-l border-slate-100">
-      {/* Premium Header */}
+      {/* Header */}
       <div className="p-8 border-b border-slate-50 flex justify-between items-start">
         <div>
             <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
@@ -96,7 +102,7 @@ const AiSidebar: React.FC<AiSidebarProps> = ({ book, initialMode, onClose }) => 
         </button>
       </div>
 
-      {/* Tabbed Navigation */}
+      {/* Tabs */}
       <div className="flex p-1.5 bg-slate-50 mx-8 mt-6 rounded-2xl border border-slate-100 overflow-x-auto no-scrollbar">
         {tabs.map(t => (
             <button
@@ -110,8 +116,17 @@ const AiSidebar: React.FC<AiSidebarProps> = ({ book, initialMode, onClose }) => 
         ))}
       </div>
 
-      {/* Main Viewport */}
+      {/* Result Display */}
       <div className="flex-grow overflow-y-auto p-8 custom-scrollbar">
+        {mode === 'findCover' && !loading && !result && (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-100 rounded-2xl flex gap-3 text-amber-800">
+                <AlertCircle size={20} className="flex-shrink-0" />
+                <p className="text-xs font-medium leading-relaxed">
+                    Sistemul va căuta link-uri directe către imagini. Uneori acestea pot fi temporare, așa că recomandăm folosirea link-urilor din Amazon sau Goodreads.
+                </p>
+            </div>
+        )}
+
         {result && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 {mode === 'edit' && <img src={result} className="w-full rounded-3xl shadow-2xl border-4 border-white" />}
@@ -140,7 +155,7 @@ const AiSidebar: React.FC<AiSidebarProps> = ({ book, initialMode, onClose }) => 
         {loading && (
             <div className="flex flex-col items-center justify-center py-24 space-y-4">
                 <Loader2 className="animate-spin text-indigo-600" size={40} />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Procesare Cognitivă...</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Interogare Motoare de Căutare...</span>
             </div>
         )}
 
@@ -150,7 +165,7 @@ const AiSidebar: React.FC<AiSidebarProps> = ({ book, initialMode, onClose }) => 
                     <Info size={24} className="text-slate-300" />
                 </div>
                 <p className="text-sm font-medium text-slate-400">
-                    {mode === 'findCover' ? 'Vom folosi Google Search pentru a găsi link-uri oficiale către coperți.' : 'Introdu o cerință pentru a iniția analiza.'}
+                    {mode === 'findCover' ? 'Apasă butonul de mai jos pentru a iniția căutarea extensivă.' : 'Introdu o cerință pentru a iniția analiza.'}
                 </p>
                 {mode === 'findCover' && (
                     <button 
@@ -163,7 +178,7 @@ const AiSidebar: React.FC<AiSidebarProps> = ({ book, initialMode, onClose }) => 
         )}
       </div>
 
-      {/* Elegant Input Section */}
+      {/* Input Section */}
       <div className="p-8 bg-slate-50 border-t border-slate-100">
         <div className="flex gap-3 mb-4">
             {mode === 'chat' && (

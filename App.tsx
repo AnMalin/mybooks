@@ -11,7 +11,7 @@ import {
   Library, Search, LayoutGrid, List, Table as TableIcon, 
   X, Sparkles, Loader2, CloudUpload, Star, 
   Home, MapPin, ArrowRight, CheckCircle, Filter, 
-  Headphones, BookOpen, Layers, ArrowUpDown, Calendar, Hash
+  Headphones, BookOpen, Layers, ArrowUpDown, Calendar, Hash, RefreshCw
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -21,9 +21,8 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Collection | 'All'>('All');
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'table'>('grid');
   const [isUsingSupabase, setIsUsingSupabase] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   
-  // Filter & Sort States
+  // Filter & Sort States - Default to most recent first
   const [filterRating, setFilterRating] = useState<number | 'All'>('All');
   const [filterType, setFilterType] = useState<BookType | 'All'>('All');
   const [sortField, setSortField] = useState<keyof Book>('dateFinished');
@@ -75,10 +74,13 @@ const App: React.FC = () => {
     }
   };
 
+  // Fix: Added handleDeleteBook to resolve missing reference errors in book rendering lists
   const handleDeleteBook = async (id: string) => {
-    if (window.confirm('Ești sigur?')) {
-      setBooks(prev => prev.filter(b => b.id !== id));
-      try { await bookService.deleteBook(id); } catch (e) {}
+    setBooks(prev => prev.filter(b => b.id !== id));
+    try {
+      await bookService.deleteBook(id);
+    } catch (e) {
+      console.error("Failed to delete book", e);
     }
   };
 
@@ -91,21 +93,14 @@ const App: React.FC = () => {
     }
   };
 
-  // Improved robust date parsing
   const parseCustomDate = (dateStr?: string) => {
-    if (!dateStr || dateStr.trim() === '' || dateStr === '-') return 0;
-    
-    // Suportă punct, slash sau cratimă ca delimitator
+    if (!dateStr || dateStr.trim() === '' || dateStr === '-' || dateStr.toLowerCase().includes('n/a')) return 0;
     const parts = dateStr.split(/[./-]/);
     if (parts.length !== 3) return 0;
-    
     const d = parseInt(parts[0], 10);
     const m = parseInt(parts[1], 10) - 1;
     let y = parseInt(parts[2], 10);
-    
-    // Tratare an scurt (ex: 24 -> 2024)
     if (y < 100) y += 2000;
-    
     const date = new Date(y, m, d);
     return isNaN(date.getTime()) ? 0 : date.getTime();
   };
@@ -126,6 +121,9 @@ const App: React.FC = () => {
         if (sortField === 'dateFinished') {
             valA = parseCustomDate(a.dateFinished);
             valB = parseCustomDate(b.dateFinished);
+            // Put items with no date at the end regardless of direction
+            if (valA === 0 && valB !== 0) return 1;
+            if (valB === 0 && valA !== 0) return -1;
         } else if (sortField === 'rating' || sortField === 'nr') {
             valA = a[sortField] || 0;
             valB = b[sortField] || 0;
@@ -154,6 +152,12 @@ const App: React.FC = () => {
     setSidebarOpen(true);
   };
 
+  const findMissingCovers = () => {
+    setActiveBook(null);
+    setAiMode('findCover');
+    setSidebarOpen(true);
+  };
+
   const confirmMove = async (targetCollection: Collection) => {
     if (!bookToMove) return;
     const today = new Date();
@@ -166,7 +170,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-indigo-100">
-      {/* Header & Hero Sections remain the same as before */}
+      {/* Header */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-100 px-8 py-4">
         <div className="max-w-screen-2xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -185,6 +189,12 @@ const App: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
              <button 
+                onClick={findMissingCovers}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 rounded-full hover:bg-slate-50 transition-all">
+                <RefreshCw size={14} />
+                Căutare Coperți
+             </button>
+             <button 
                 onClick={() => { setActiveBook(null); setAiMode('chat'); setSidebarOpen(true); }}
                 className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition-all text-xs font-black uppercase tracking-widest shadow-xl shadow-slate-200 active:scale-95">
                 <Sparkles size={14} />
@@ -194,6 +204,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
+      {/* Hero Section */}
       <section className="bg-slate-50 border-b border-slate-100 pt-16 pb-20 px-8">
         <div className="max-w-screen-2xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-6">
@@ -204,9 +215,6 @@ const App: React.FC = () => {
                     Reflecții peste <br/>
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">cuvinte și timp.</span>
                 </h2>
-                <p className="text-slate-500 text-lg max-w-lg leading-relaxed font-medium">
-                    Aceasta este arhiva mea de gânduri și descoperiri. Fiecare volum a lăsat o urmă, iar acest spațiu mă ajută să le păstrez vii.
-                </p>
                 <div className="flex gap-4 pt-4">
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex-1 text-center">
                         <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-widest">Total</p>
@@ -220,13 +228,13 @@ const App: React.FC = () => {
             </div>
             <div className="hidden lg:flex justify-end">
                 <div className="relative w-80 h-96 bg-white rounded-[3rem] shadow-2xl border-4 border-white rotate-3 overflow-hidden group hover:rotate-0 transition-transform duration-700">
-                    <img src="https://picsum.photos/400/600?reading" className="w-full h-full object-cover" alt="Hero" />
+                    <img src="https://picsum.photos/400/600?book-art" className="w-full h-full object-cover" alt="Hero" />
                 </div>
             </div>
         </div>
       </section>
 
-      {/* Main Content & Enhanced Control Bar */}
+      {/* Main Controls */}
       <main className="max-w-screen-2xl mx-auto px-8 py-12">
         <div className="flex flex-col lg:flex-row justify-between items-center mb-6 gap-8">
             <div className="flex bg-slate-100 p-1 rounded-xl">
@@ -270,19 +278,18 @@ const App: React.FC = () => {
             </div>
         </div>
 
-        {/* Filter & Sort Bar */}
+        {/* Improved Sort & Filter Row */}
         <div className="flex flex-wrap items-center gap-y-4 gap-x-8 mb-12 py-6 border-y border-slate-100">
-            {/* Sorting Section */}
             <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                     <ArrowUpDown size={14} className="text-slate-400" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sortează după:</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sortare:</span>
                 </div>
                 <div className="flex gap-1.5">
                     {[
                         { id: 'dateFinished', label: 'Recent Finalizate', icon: Calendar },
-                        { id: 'rating', label: 'Rating', icon: Star },
-                        { id: 'nr', label: 'Index', icon: Hash }
+                        { id: 'rating', label: 'Top Rating', icon: Star },
+                        { id: 'nr', label: 'Număr Index', icon: Hash }
                     ].map((s) => (
                         <button
                             key={s.id}
@@ -291,9 +298,7 @@ const App: React.FC = () => {
                         >
                             <s.icon size={12} fill={sortField === s.id && s.id === 'rating' ? "currentColor" : "none"} />
                             {s.label}
-                            {sortField === s.id && (
-                                <span className="ml-1 text-[8px] opacity-70">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                            )}
+                            {sortField === s.id && <span className="ml-1 opacity-70">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
                         </button>
                     ))}
                 </div>
@@ -301,39 +306,27 @@ const App: React.FC = () => {
 
             <div className="hidden lg:block h-6 w-px bg-slate-200" />
 
-            {/* Rating & Type Filter Section */}
             <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                     <Filter size={14} className="text-slate-400" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Filtre:</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Filtrează:</span>
                 </div>
                 <div className="flex gap-1.5">
                     {['All', 5, 4, 3].map((r) => (
                         <button
                             key={r}
                             onClick={() => setFilterRating(r as any)}
-                            className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all flex items-center gap-2 ${filterRating === r ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-200'}`}
+                            className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all ${filterRating === r ? 'bg-amber-500 text-white shadow-lg shadow-amber-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-200'}`}
                         >
-                            {r === 'All' ? 'Toate' : `${r} ★`}
-                        </button>
-                    ))}
-                    <div className="w-px h-4 bg-slate-200 mx-2 self-center" />
-                    {['All', BookType.Book, BookType.Audiobook].map((type) => (
-                        <button
-                            key={type}
-                            onClick={() => setFilterType(type as any)}
-                            className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all flex items-center gap-2 ${filterType === type ? 'bg-violet-600 text-white shadow-lg shadow-violet-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-200'}`}
-                        >
-                            {type === 'All' ? 'Toate Formatele' : (type === BookType.Book ? <BookOpen size={10} /> : <Headphones size={10} />)}
-                            {type !== 'All' && type}
+                            {r === 'All' ? 'Toate Stelele' : `${r} ★`}
                         </button>
                     ))}
                 </div>
             </div>
 
             <div className="ml-auto">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 px-3 py-1.5 rounded-full">
-                    {filteredBooks.length} Volume afișate
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] bg-slate-100 px-4 py-2 rounded-full">
+                    {filteredBooks.length} Volume
                 </span>
             </div>
         </div>
@@ -341,7 +334,7 @@ const App: React.FC = () => {
         {isLoading ? (
             <div className="flex flex-col items-center justify-center py-32 space-y-4">
                 <Loader2 className="animate-spin text-slate-900" size={32} />
-                <p className="text-xs font-black uppercase tracking-widest text-slate-400">Răsfoim arhiva...</p>
+                <p className="text-xs font-black uppercase tracking-widest text-slate-400">Încărcăm biblioteca...</p>
             </div>
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -390,7 +383,7 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* Modals & Sidebar remain the same */}
+      {/* Book Details Modal */}
       {selectedBookForDetails && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-6 sm:p-12">
             <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl" onClick={() => setSelectedBookForDetails(null)} />
@@ -414,16 +407,6 @@ const App: React.FC = () => {
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Finalizat</span>
                                 <p className="text-sm font-black">{selectedBookForDetails.dateFinished || 'N/A'}</p>
                             </div>
-                        </div>
-                    </div>
-                    <div className="space-y-8 mb-12">
-                        <div>
-                            <h4 className="text-xs font-black uppercase tracking-widest text-indigo-600 mb-4 flex items-center gap-2">
-                                <Sparkles size={14}/> Rezumat & Analiză
-                            </h4>
-                            <p className="text-slate-600 text-lg leading-relaxed font-medium italic border-l-4 border-slate-100 pl-6">
-                                "{selectedBookForDetails.summary || 'Niciun rezumat disponibil încă.'}"
-                            </p>
                         </div>
                     </div>
                     <div className="mt-auto flex gap-4">
@@ -460,7 +443,11 @@ const App: React.FC = () => {
       {sidebarOpen && (
         <>
             <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40" onClick={() => setSidebarOpen(false)} />
-            <AiSidebar book={activeBook} initialMode={aiMode} onClose={() => setSidebarOpen(false)} />
+            <AiSidebar 
+                book={activeBook} 
+                initialMode={aiMode} 
+                onClose={() => setSidebarOpen(false)} 
+            />
         </>
       )}
     </div>

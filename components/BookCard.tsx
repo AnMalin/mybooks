@@ -1,13 +1,13 @@
 
 import React, { useState } from 'react';
 import { Book, BookType, Collection } from '../types';
-import { Star, Headphones, BookOpen, Wand2, MessageCircle, FileText, CheckCircle, Trash2, ArrowUpRight, Mic, Search } from 'lucide-react';
+import { Star, Headphones, BookOpen, Wand2, MessageCircle, FileText, CheckCircle, Trash2, ArrowUpRight, Mic, Search, RefreshCw } from 'lucide-react';
 import * as GeminiService from '../services/geminiService';
 import { useBookCover } from '../hooks/useBookCover';
 
 interface BookCardProps {
   book: Book;
-  onOpenAiTools: (book: Book, mode: 'chat' | 'edit' | 'video' | 'analyze' | 'summary') => void;
+  onOpenAiTools: (book: Book, mode: 'chat' | 'edit' | 'video' | 'analyze' | 'summary' | 'findCover') => void;
   onOpenDetails: () => void;
   onMarkRead?: () => void;
   onDelete?: () => void;
@@ -46,8 +46,19 @@ const BookCard: React.FC<BookCardProps> = ({ book, onOpenAiTools, onOpenDetails,
           src={coverUrl} 
           alt={book.title}
           loading="lazy"
-          className={`w-full h-full object-cover transition-all duration-1000 group-hover:scale-105 group-hover:rotate-1 ${isRealCover ? 'opacity-100' : 'opacity-60 grayscale-[0.3]'}`}
+          className={`w-full h-full object-cover transition-all duration-1000 group-hover:scale-105 group-hover:rotate-1 ${isRealCover ? 'opacity-100' : 'opacity-40 grayscale-[0.8]'}`}
         />
+
+        {!isRealCover && !isSearching && (
+            <button 
+                onClick={(e) => { e.stopPropagation(); onOpenAiTools(book, 'findCover'); }}
+                className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="bg-white/90 backdrop-blur p-3 rounded-full shadow-lg text-indigo-600 mb-2">
+                    <RefreshCw size={20} />
+                </div>
+                <span className="text-[10px] font-black uppercase text-indigo-600 bg-white/90 px-2 py-1 rounded-md">Caută Copertă Reală</span>
+            </button>
+        )}
         
         {/* Dynamic Badge */}
         <div className="absolute top-4 left-4 z-10">
@@ -87,13 +98,6 @@ const BookCard: React.FC<BookCardProps> = ({ book, onOpenAiTools, onOpenDetails,
                  </button>
             </div>
         </div>
-        
-        {/* Detail Trigger Icon */}
-        <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="p-2 bg-slate-900 text-white rounded-full">
-                <ArrowUpRight size={14} />
-            </div>
-        </div>
       </div>
 
       {/* Content Area */}
@@ -115,7 +119,7 @@ const BookCard: React.FC<BookCardProps> = ({ book, onOpenAiTools, onOpenDetails,
 
         {book.summary && (
             <div className="pt-4 border-t border-slate-50">
-                <p className="text-[11px] text-slate-500 leading-relaxed line-clamp-3 font-medium italic">
+                <p className="text-[11px] text-slate-500 leading-relaxed line-clamp-2 font-medium italic">
                     "{book.summary}"
                 </p>
                 <button 
