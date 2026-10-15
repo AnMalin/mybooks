@@ -6,9 +6,9 @@ const safeGet = (k: string) => { try { return localStorage.getItem(k); } catch {
 
 function Kpi({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
+    <div className="rounded-2xl border border-line bg-surface p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-1 font-serif text-3xl font-bold">{value}</p>
+      <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">{value}</p>
       {sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
     </div>
   );
@@ -39,9 +39,9 @@ function Bars({ data, label, unit = 'books', showValues = false }: { data: { lab
 
 function Panel({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <section className="rounded-xl border border-line bg-surface p-4">
+    <section className="rounded-2xl border border-line bg-surface p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="font-serif text-base font-bold">{title}</h3>
+        <h3 className="text-base font-semibold">{title}</h3>
         {right}
       </div>
       {children}

@@ -26,7 +26,7 @@ export default function BookTable({ books, sort, dir, onSort, onOpen }: Props) {
   );
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+    <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
       <table className="w-full min-w-[640px] text-sm">
         <thead className="border-b border-line">
           <tr>
@@ -40,7 +40,7 @@ export default function BookTable({ books, sort, dir, onSort, onOpen }: Props) {
         <tbody>
           {books.map(b => (
             <tr key={b.id} tabIndex={0} onClick={() => onOpen(b)} onKeyDown={e => e.key === 'Enter' && onOpen(b)} className="cursor-pointer border-b border-line last:border-0 hover:bg-accent-soft">
-              <td className="max-w-[22rem] px-3 py-2 font-serif font-semibold">
+              <td className="max-w-[22rem] px-3 py-2 font-semibold">
                 <span className="line-clamp-1">
                   {b.format === 'audiobook' && <Headphones size={13} className="mr-1.5 inline text-muted" aria-label="Audiobook" />}
                   {b.title}

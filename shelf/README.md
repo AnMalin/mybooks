@@ -14,7 +14,7 @@ npm run build      # production build in dist/
 
 - **Library** — grid or table view, search (title, author, tags, notes), filters (status, shelf, format, rating), sorting.
 - **Status** — Read / Reading / To read, with rating (1–5), finish date, shelf, tags, ISBN, pages, notes.
-- **Covers** — generated typographic covers by default; "Find cover & details" and "Fetch missing covers" use the free [Open Library](https://openlibrary.org/dev/docs/api/search) API.
+- **Covers** — real covers load automatically, only for the books you scroll past, from [Open Library](https://openlibrary.org/dev/docs/api/search) with [Google Books](https://developers.google.com/books/docs/v1/using) as a fallback (both free, no key). Books with no match keep a generated cover and are not re-checked for 30 days. Titles and authors are sent to those two services; turn this off in the `⋯` menu ("Auto-load covers while browsing"). "Find all missing covers now" runs the lookup for the whole library.
 - **Stats** — books per year / month, rating distribution, top authors, shelves, reading goal.
 - **Import / export** — JSON, CSV, and Goodreads CSV exports (merge, duplicates skipped).
 - **Dark mode**, keyboard accessible, responsive, undo on delete.

@@ -16,6 +16,7 @@ export interface Book {
   isbn: string;
   pages: number | null;
   addedAt: string | null; // ISO timestamp
+  coverChecked?: string | null; // ISO timestamp of the last automatic cover lookup that found nothing
 }
 
 export const STATUS_LABEL: Record<Status, string> = {

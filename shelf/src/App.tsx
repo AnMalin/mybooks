@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, BookOpen, Download, ImageDown, LayoutGrid, Library, List, Moon, MoreHorizontal, Plus, RotateCcw, Search, Sun, Upload, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BarChart3, BookOpen, Check, Download, ImageDown, LayoutGrid, Library, List, Moon, MoreHorizontal, Plus, RotateCcw, Search, Sun, Upload, X } from 'lucide-react';
 import { Book, FORMAT_LABEL, Format, STATUS_LABEL, Status, emptyBook } from './types';
 import { useLibrary } from './store';
 import { fromCsv, toCsv } from './lib/csv';
 import { download } from './lib/download';
-import { searchOpenLibrary } from './lib/openlibrary';
+import { clearCoverQueue, enqueueCover } from './lib/covers';
 import BookCard from './components/BookCard';
 import BookTable, { SortKey } from './components/BookTable';
 import BookDialog from './components/BookDialog';
@@ -37,7 +37,8 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
   const [coverJob, setCoverJob] = useState<{ done: number; total: number } | null>(null);
-  const cancelCovers = useRef(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [autoCovers, setAutoCovers] = useState(() => { try { return localStorage.getItem('shelf.autocovers') !== 'off'; } catch { return true; } });
   const fileRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<number | undefined>(undefined);
 
@@ -51,6 +52,23 @@ export default function App() {
     document.documentElement.classList.toggle('dark', dark);
     try { localStorage.setItem('shelf.theme', dark ? 'dark' : 'light'); } catch { /* ignore */ }
   }, [dark]);
+
+  useEffect(() => {
+    try { localStorage.setItem('shelf.autocovers', autoCovers ? 'on' : 'off'); } catch { /* ignore */ }
+  }, [autoCovers]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (e.key === '/' && !e.metaKey && !e.ctrlKey && !/INPUT|TEXTAREA|SELECT/.test(t.tagName)) {
+        e.preventDefault();
+        setTab('library');
+        setTimeout(() => searchRef.current?.focus(), 0);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -139,40 +157,51 @@ export default function App() {
     }
   };
 
-  const fetchCovers = async () => {
+  const DAY = 86_400_000;
+  const applyHit = (id: string) => (hit: { coverUrl: string; pages?: number; isbn?: string } | null) =>
+    lib.patch(id, b => (hit ? { coverUrl: hit.coverUrl, pages: b.pages ?? hit.pages ?? null, isbn: b.isbn || hit.isbn || '', coverChecked: null } : { coverChecked: new Date().toISOString() }));
+
+  /** Lazy path: a card without a cover scrolled into view. Skips books we already looked up recently. */
+  const requestCover = useCallback((b: Book) => {
+    if (!autoCovers || b.coverUrl) return;
+    if (b.coverChecked && Date.now() - Date.parse(b.coverChecked) < 30 * DAY) return;
+    enqueueCover(b.id, b.title, b.author, applyHit(b.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCovers, lib.patch]);
+
+  const fetchCovers = () => {
     const todo = books.filter(b => !b.coverUrl);
     if (!todo.length) return say('Every book already has a cover');
-    cancelCovers.current = false;
-    let found = 0;
-    for (let i = 0; i < todo.length; i++) {
-      if (cancelCovers.current) break;
-      setCoverJob({ done: i, total: todo.length });
-      try {
-        const [hit] = await searchOpenLibrary(todo[i].title, todo[i].author, 1);
-        if (hit?.coverUrl) { lib.save({ ...todo[i], coverUrl: hit.coverUrl, pages: todo[i].pages ?? hit.pages ?? null, isbn: todo[i].isbn || hit.isbn || '' }); found++; }
-      } catch {
-        setCoverJob(null);
-        return say(found ? `Stopped: lost connection after ${found} covers` : 'Could not reach Open Library. Check your connection.');
-      }
-      await new Promise(r => setTimeout(r, 400)); // be polite to the free API
-    }
-    setCoverJob(null);
-    say(`Found ${found} cover${found === 1 ? '' : 's'}`);
+    let done = 0, found = 0, failed = 0;
+    setCoverJob({ done: 0, total: todo.length });
+    const finish = () => {
+      setCoverJob(null);
+      say(failed && !found ? 'Could not reach the cover services. Check your connection.' : `Found ${found} cover${found === 1 ? '' : 's'}${failed ? ` (${failed} not checked, offline)` : ''}`);
+    };
+    todo.forEach(b =>
+      enqueueCover(
+        b.id, b.title, b.author,
+        hit => { applyHit(b.id)(hit); if (hit) found++; setCoverJob({ done: ++done, total: todo.length }); if (done === todo.length) finish(); },
+        () => { failed++; setCoverJob({ done: ++done, total: todo.length }); if (done === todo.length) finish(); },
+      ),
+    );
   };
+
+  const stopCovers = () => { clearCoverQueue(); setCoverJob(null); say('Stopped looking for covers'); };
 
   const menuItem = 'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-accent-soft';
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur">
+      <header className="glass sticky top-0 z-30 border-b border-line/70">
         <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-3 sm:gap-3">
           <div className="flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-accent text-accent-ink"><BookOpen size={18} /></span>
-            <h1 className="hidden font-serif text-xl font-bold min-[420px]:block">Shelf</h1>
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-accent to-fuchsia-500 text-white shadow-lg shadow-accent/30"><BookOpen size={18} /></span>
+            <h1 className="hidden text-lg font-semibold min-[420px]:block">Shelf</h1>
           </div>
           <nav className="ml-2 flex gap-1" aria-label="Sections">
             {([['library', 'Library', Library], ['stats', 'Stats', BarChart3]] as const).map(([k, label, Icon]) => (
-              <button key={k} onClick={() => setTab(k)} aria-current={tab === k ? 'page' : undefined} aria-label={label} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ${tab === k ? 'bg-accent-soft text-accent' : 'text-muted hover:text-ink'}`}>
+              <button key={k} onClick={() => setTab(k)} aria-current={tab === k ? 'page' : undefined} aria-label={label} className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition ${tab === k ? 'bg-accent-soft text-accent' : 'text-muted hover:text-ink'}`}>
                 <Icon size={16} /> <span className="hidden sm:inline">{label}</span>
               </button>
             ))}
@@ -183,11 +212,12 @@ export default function App() {
             <div className="relative" data-menu>
               <button className="btn !px-2.5" aria-label="Data menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(o => !o)}><MoreHorizontal size={16} /></button>
               {menuOpen && (
-                <div className="absolute right-0 mt-2 w-60 rounded-xl border border-line bg-surface p-1.5 shadow-xl">
+                <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-line bg-surface p-1.5 shadow-2xl">
                   <button className={menuItem} onClick={() => { exportJson(); setMenuOpen(false); }}><Download size={15} /> Export JSON</button>
                   <button className={menuItem} onClick={() => { exportCsv(); setMenuOpen(false); }}><Download size={15} /> Export CSV</button>
                   <button className={menuItem} onClick={() => { fileRef.current?.click(); setMenuOpen(false); }}><Upload size={15} /> Import JSON / CSV / Goodreads</button>
-                  <button className={menuItem} onClick={() => { setMenuOpen(false); fetchCovers(); }}><ImageDown size={15} /> Fetch missing covers</button>
+                  <button className={menuItem} onClick={() => { setMenuOpen(false); fetchCovers(); }}><ImageDown size={15} /> Find all missing covers now</button>
+                  <button className={menuItem} role="menuitemcheckbox" aria-checked={autoCovers} onClick={() => setAutoCovers(a => !a)}><Check size={15} className={autoCovers ? '' : 'opacity-0'} /> Auto-load covers while browsing</button>
                   <hr className="my-1 border-line" />
                   <button className={`${menuItem} text-danger`} onClick={() => { setMenuOpen(false); if (confirm('Replace your whole library with the original 348 sample books? This cannot be undone.')) { lib.resetToSeed(); say('Library reset'); } }}><RotateCcw size={15} /> Reset to original books</button>
                 </div>
@@ -203,9 +233,9 @@ export default function App() {
           <Stats books={books} />
         ) : (
           <>
-            <div className="mb-4 flex flex-wrap items-center gap-2" role="tablist" aria-label="Status">
+            <div className="mb-4 inline-flex max-w-full flex-wrap gap-1 rounded-2xl border border-line bg-surface p-1" role="tablist" aria-label="Status">
               {(['all', 'read', 'reading', 'want'] as const).map(s => (
-                <button key={s} role="tab" aria-selected={status === s} onClick={() => setStatus(s)} className={`rounded-full border px-3.5 py-1.5 text-sm font-medium ${status === s ? 'border-transparent bg-accent text-accent-ink' : 'border-line bg-surface hover:border-muted'}`}>
+                <button key={s} role="tab" aria-selected={status === s} onClick={() => setStatus(s)} className={`rounded-xl px-3.5 py-1.5 text-sm font-medium transition ${status === s ? 'bg-accent text-accent-ink shadow-sm' : 'text-muted hover:text-ink'}`}>
                   {s === 'all' ? 'All' : STATUS_LABEL[s]} <span className="opacity-70">{counts[s]}</span>
                 </button>
               ))}
@@ -214,8 +244,9 @@ export default function App() {
             <div className="mb-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto_auto]">
               <label className="relative sm:col-span-2 lg:col-span-1">
                 <span className="sr-only">Search</span>
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-                <input className="field !pl-9" type="search" placeholder="Search title, author, tag, notes…" value={q} onChange={e => setQ(e.target.value)} />
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
+                <input ref={searchRef} className="field !pl-10 !pr-9" type="search" placeholder="Search title, author, tag, notes…" value={q} onChange={e => setQ(e.target.value)} />
+                <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-line px-1.5 text-[0.7rem] text-muted lg:block">/</kbd>
               </label>
               <select aria-label="Shelf" className="field lg:!w-auto" value={shelf} onChange={e => setShelf(e.target.value)}>
                 <option value="">All shelves</option>
@@ -246,15 +277,15 @@ export default function App() {
 
             {books.length === 0 ? (
               <div className="rounded-xl border border-dashed border-line py-20 text-center">
-                <p className="font-serif text-xl font-bold">Your shelf is empty</p>
+                <p className="text-xl font-bold">Your shelf is empty</p>
                 <p className="mt-1 text-sm text-muted">Add your first book, or import a CSV / Goodreads export.</p>
                 <button className="btn btn-primary mt-4" onClick={() => setDialog({ book: emptyBook(), isNew: true })}><Plus size={16} /> Add book</button>
               </div>
             ) : visible.length === 0 ? (
               <p className="py-16 text-center text-muted">No books match these filters.</p>
             ) : view === 'grid' ? (
-              <div className="grid grid-cols-2 gap-x-2 gap-y-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7">
-                {visible.map(b => <BookCard key={b.id} book={b} onOpen={bk => setDialog({ book: bk, isNew: false })} />)}
+              <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7">
+                {visible.map(b => <BookCard key={b.id} book={b} onOpen={bk => setDialog({ book: bk, isNew: false })} onNeedCover={autoCovers ? requestCover : undefined} />)}
               </div>
             ) : (
               <BookTable books={visible} sort={sort} dir={dir} onSort={onSort} onOpen={bk => setDialog({ book: bk, isNew: false })} />
@@ -266,13 +297,13 @@ export default function App() {
       {dialog && <BookDialog key={dialog.book.id} initial={dialog.book} isNew={dialog.isNew} shelves={lib.shelves} onSave={save} onDelete={remove} onClose={() => setDialog(null)} />}
 
       {coverJob && (
-        <div className="fixed bottom-4 left-4 z-50 flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm shadow-xl" role="status">
+        <div className="fixed bottom-4 left-4 z-50 flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 text-sm shadow-2xl" role="status">
           Fetching covers… {coverJob.done}/{coverJob.total}
-          <button className="btn !py-1" onClick={() => { cancelCovers.current = true; }}>Stop</button>
+          <button className="btn !py-1" onClick={stopCovers}>Stop</button>
         </div>
       )}
       {toast && (
-        <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-xl bg-ink px-4 py-2.5 text-sm text-bg shadow-xl" role="status">
+        <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-ink px-4 py-2.5 text-sm text-bg shadow-2xl" role="status">
           {toast.msg}
           {toast.undo && <button className="font-semibold underline" onClick={toast.undo}>Undo</button>}
         </div>

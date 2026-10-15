@@ -67,9 +67,9 @@ export default function BookDialog({ initial, isNew, shelves, onSave, onDelete, 
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-6" onMouseDown={e => e.target === e.currentTarget && onClose()}>
-      <form onSubmit={submit} role="dialog" aria-modal="true" aria-label={isNew ? 'Add book' : 'Edit book'} className="flex max-h-[95vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-line bg-bg shadow-2xl sm:rounded-2xl">
+      <form onSubmit={submit} role="dialog" aria-modal="true" aria-label={isNew ? 'Add book' : 'Edit book'} className="flex max-h-[95vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-line bg-bg shadow-2xl sm:rounded-3xl">
         <header className="flex items-center justify-between border-b border-line px-5 py-3">
-          <h2 className="font-serif text-lg font-bold">{isNew ? 'Add a book' : 'Edit book'}</h2>
+          <h2 className="text-lg font-semibold">{isNew ? 'Add a book' : 'Edit book'}</h2>
           <button type="button" onClick={onClose} aria-label="Close" className="rounded p-1 hover:bg-line"><X size={18} /></button>
         </header>
 

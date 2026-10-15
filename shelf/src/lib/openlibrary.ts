@@ -22,6 +22,6 @@ export async function searchOpenLibrary(title: string, author = '', limit = 6, s
     year: d.first_publish_year,
     pages: d.number_of_pages_median,
     isbn: (d.isbn ?? [])[0],
-    coverUrl: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : '',
+    coverUrl: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg?default=false` : '',
   }));
 }

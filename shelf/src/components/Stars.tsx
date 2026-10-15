@@ -12,9 +12,9 @@ export default function Stars({ value, onChange, size = 14 }: Props) {
   return (
     <span className="inline-flex items-center gap-0.5" role={onChange ? 'radiogroup' : 'img'} aria-label={`Rating: ${value || 'none'} of 5`}>
       {[1, 2, 3, 4, 5].map(n => {
-        const star = <Star size={size} className={n <= value ? 'fill-accent text-accent' : 'text-line'} strokeWidth={1.75} />;
+        const star = <Star size={size} className={n <= value ? 'fill-star text-star' : 'text-line'} strokeWidth={1.75} />;
         return onChange ? (
-          <button key={n} type="button" role="radio" aria-checked={n === value} aria-label={`${n} star${n > 1 ? 's' : ''}`} className="rounded p-0.5 hover:scale-110" onClick={() => onChange(n === value ? 0 : n)}>
+          <button key={n} type="button" role="radio" aria-checked={n === value} aria-label={`${n} star${n > 1 ? 's' : ''}`} className="rounded p-0.5 transition hover:scale-125" onClick={() => onChange(n === value ? 0 : n)}>
             {star}
           </button>
         ) : (
