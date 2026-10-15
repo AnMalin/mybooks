@@ -7,7 +7,9 @@ const supabaseUrl = 'https://aupawysfgimuftikwlfz.supabase.co';
 const supabaseAnonKey = 'sb_publishable_HBBaV_92ZZpvOttm4wPjtw_QaXinown';
 
 // Validation
-const isSupabaseConfigured = supabaseUrl && 
+// Local-only by default; set VITE_USE_SUPABASE=true in .env.local to re-enable cloud sync.
+const useSupabase = (import.meta as any).env?.VITE_USE_SUPABASE === 'true';
+const isSupabaseConfigured = useSupabase && supabaseUrl &&
                              supabaseAnonKey && 
                              !supabaseUrl.includes('process.env') &&
                              supabaseUrl.startsWith('https://');

@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { ALL_BOOKS } from './constants';
 import { Book, Collection, BookType } from './types';
-import { bookService } from './services/supabaseService';
+import { bookService, supabase } from './services/supabaseService';
 import BookCard from './components/BookCard';
 import BookRow from './components/BookRow';
 import BookTable from './components/BookTable';
@@ -44,14 +44,14 @@ const App: React.FC = () => {
           await bookService.seedDatabase(ALL_BOOKS);
           const seededData = await bookService.fetchBooks();
           setBooks(seededData);
-          setIsUsingSupabase(true);
+          setIsUsingSupabase(!!supabase);
         } catch (seedErr: any) {
           setBooks(ALL_BOOKS);
           setIsUsingSupabase(false);
         }
       } else {
         setBooks(data);
-        setIsUsingSupabase(true);
+        setIsUsingSupabase(!!supabase);
       }
     } catch (error: any) {
       setBooks(ALL_BOOKS);
